@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>VAMP XO - Daily App</title>
+  
+  <!-- 引入 Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- 引入 Lucide 圖示庫 -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <style>
+    /* 自訂選擇反白顏色 (Carti Red) */
+    ::-moz-selection { background: rgba(239,68,68,0.3); color: white; }
+    ::selection { background: rgba(239,68,68,0.3); color: white; }
+    
+    /* 隱藏滾動條但保留功能 */
+    ::-webkit-scrollbar { width: 0px; background: transparent; }
+    
+    /* 深色模式日期選擇器適配 */
+    input[type="date"]::-webkit-calendar-picker-indicator {
+      filter: invert(1);
+      opacity: 0.5;
+    }
+  </style>
+</head>
+<body class="bg-zinc-950 font-sans text-zinc-200">
+
+  <!-- 浮動警告通知 (Toast) -->
+  <div id="toast-container" class="hidden fixed top-10 left-1/2 transform -translate-x-1/2 z-[100] bg-red-950 border-2 border-red-600 text-red-500 px-6 py-3 rounded-2xl shadow-[0_0_30px_rgba(255,0,60,0.5)] font-bold tracking-wider flex items-center gap-2">
+    <i data-lucide="skull" class="w-5 h-5 animate-pulse"></i>
+    <span id="toast-message"></span>
+  </div>
+
+  <div class="flex justify-center items-center min-h-screen">
+    
+    <!-- ==================== 歡迎畫面 (Splash Screen) ==================== -->
+    <div id="splash-screen" class="flex flex-col h-screen w-full items-center justify-center bg-black cursor-pointer overflow-hidden relative z-50" onclick="startApp()">
+      <!-- 背景圖片與漸層融合 -->
+      <div class="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-80" style="background-image: url('image_7b828e.jpg')"></div>
+      <div class="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent"></div>
+      <div class="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(0,0,0,0.8)_100%)]"></div>
+
+      <div class="z-10 flex flex-col items-center justify-center relative">
+        <h1 class="text-5xl font-black text-red-600 tracking-[0.2em] drop-shadow-[0_0_25px_rgba(255,0,60,0.8)] flex flex-col items-center gap-4 text-center">
+          <span class="text-zinc-300 text-xl tracking-[0.5em] drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">歡迎，</span>
+          eviljordan
+        </h1>
+        <p class="mt-8 text-purple-500 font-bold tracking-[0.5em] animate-pulse drop-shadow-[0_0_10px_rgba(138,43,226,0.8)] text-sm flex items-center gap-2">
+          <i data-lucide="moon" class="w-4 h-4"></i> XO VAMP <i data-lucide="moon" class="w-4 h-4"></i>
+        </p>
+      </div>
+      <div class="absolute bottom-10 text-zinc-500 text-[10px] tracking-widest font-black z-10 drop-shadow-md">TAP ANYWHERE TO START</div>
+    </div>
+
+    <!-- ==================== 主應用程式區塊 ==================== -->
+    <div id="main-app" class="hidden w-full h-screen sm:h-[850px] sm:w-[420px] bg-black sm:rounded-[3rem] sm:shadow-[0_0_60px_rgba(255,0,60,0.15)] overflow-hidden relative flex flex-col border-zinc-900 sm:border-8">
+      
+      <!-- 頂部狀態欄 (動態切換) -->
+      <div class="pt-12 px-6 pb-4 bg-zinc-950/90 backdrop-blur-md shadow-sm z-10 border-b border-zinc-900 relative">
+        <!-- 背景裝飾 -->
+        <div class="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
+          <i data-lucide="star" class="w-24 h-24 text-red-500 fill-current"></i>
+        </div>
+
+        <!-- 任務 Topbar -->
+        <div id="topbar-tasks" class="topbar-content hidden">
+          <h1 class="text-3xl font-black text-white tracking-widest flex items-center gap-2">
+            任務 <i data-lucide="crosshair" class="w-6 h-6 text-red-500"></i>
+          </h1>
+          <p class="text-zinc-400 mt-1 font-medium tracking-wide">待辦事項 <span id="pending-tasks-count" class="text-red-500 font-bold">0</span></p>
+        </div>
+
+        <!-- 記帳 Topbar -->
+        <div id="topbar-expenses" class="topbar-content hidden">
+          <h1 class="text-3xl font-black text-white tracking-widest flex items-center gap-2">
+            記帳 <i data-lucide="activity" class="w-6 h-6 text-purple-500"></i>
+          </h1>
+          <div class="mt-4 bg-zinc-900/80 rounded-2xl p-4 border border-purple-900/50 shadow-[inset_0_0_15px_rgba(138,43,226,0.1)]">
+            <div class="flex justify-between items-center mb-2">
+              <span class="text-purple-400 font-black tracking-widest text-xs">OPIUM BUDGET</span>
+              
+              <div id="budget-edit-mode" class="hidden flex items-center gap-2">
+                <input id="budget-input" type="number" class="w-20 px-2 py-1 text-sm rounded bg-black border border-purple-500/50 text-white focus:outline-none focus:border-red-500">
+                <button onclick="saveBudget()" class="text-xs bg-red-600 font-bold tracking-widest text-white px-2 py-1 rounded">SAVE</button>
+              </div>
+              <button id="budget-display-mode" onclick="toggleBudgetEdit()" class="flex items-center text-purple-400 hover:text-red-400 transition-colors">
+                <span id="budget-display" class="font-bold mr-1 tracking-wider">$5000</span> <i data-lucide="edit-2" class="w-3 h-3"></i>
+              </button>
+
+            </div>
+            <div class="flex justify-between items-end mt-4">
+              <div>
+                <p class="text-xs font-bold text-purple-500/70 mb-1 tracking-widest">REMAINING</p>
+                <p id="remaining-display" class="text-4xl font-black tracking-tighter text-purple-400 drop-shadow-[0_0_10px_rgba(138,43,226,0.6)]">$5000</p>
+              </div>
+              <div class="text-right">
+                <p class="text-[10px] font-bold text-zinc-500 mb-1 tracking-widest">SPENT</p>
+                <p id="total-spent-display" class="text-lg font-bold text-white tracking-wider">$0</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 健身 Topbar -->
+        <div id="topbar-fitness" class="topbar-content hidden">
+          <h1 class="text-3xl font-black text-white tracking-widest flex items-center gap-2">
+            體能 <i data-lucide="flame" class="w-6 h-6 text-rose-500"></i>
+          </h1>
+          <p class="text-zinc-400 mt-1 font-medium tracking-wide">NO PAIN NO GAIN</p>
+        </div>
+
+        <!-- 理財 Topbar -->
+        <div id="topbar-investment" class="topbar-content hidden">
+          <h1 class="text-3xl font-black text-white tracking-widest flex items-center gap-2">
+            理財 <i data-lucide="trending-up" class="w-6 h-6 text-cyan-400"></i>
+          </h1>
+          <p class="text-zinc-400 mt-1 font-medium tracking-wide">XOTWOD 財商筆記</p>
+        </div>
+
+        <!-- 課程 Topbar -->
+        <div id="topbar-courses" class="topbar-content hidden">
+          <h1 class="text-3xl font-black text-white tracking-widest flex items-center gap-2">
+            課程 <i data-lucide="book-open" class="w-6 h-6 text-fuchsia-500"></i>
+          </h1>
+          <p class="text-zinc-400 mt-1 font-medium tracking-wide">未來藍圖</p>
+        </div>
+      </div>
+
+      <!-- 主要內容區 (可滾動) -->
+      <div class="flex-1 overflow-y-auto p-6 pb-32">
+        
+        <!-- 1. 任務 Tab -->
+        <div id="tab-tasks" class="tab-content hidden space-y-6">
+          <div>
+            <h2 class="text-sm font-black text-red-500 mb-3 tracking-widest flex items-center gap-2">
+              <i data-lucide="clock" class="w-4 h-4"></i> COUNTDOWNS
+            </h2>
+            <form onsubmit="addCountdown(event)" class="flex gap-2 mb-4 bg-zinc-900/50 p-2 rounded-xl border border-zinc-800">
+              <input id="new-cd-title" type="text" placeholder="事件名稱" class="w-1/3 bg-black rounded-lg px-3 py-2 text-xs border border-zinc-800 text-white focus:outline-none focus:border-red-500/50" required>
+              <input id="new-cd-date" type="date" class="flex-1 bg-black rounded-lg px-2 py-2 text-xs border border-zinc-800 text-white focus:outline-none focus:border-red-500/50" required>
+              <button type="submit" class="bg-red-600 hover:bg-red-500 text-white px-3 rounded-lg text-xs font-bold transition-all">+</button>
+            </form>
+            <div id="countdowns-list" class="grid grid-cols-2 gap-3"></div>
+          </div>
+
+          <div class="h-px bg-zinc-800 w-full my-4"></div>
+
+          <div>
+            <h2 class="text-sm font-black text-red-500 mb-3 tracking-widest flex items-center gap-2">
+              <i data-lucide="skull" class="w-4 h-4"></i> TASKS
+            </h2>
+            <form onsubmit="addTask(event)" class="flex gap-2 mb-4">
+              <input id="new-task-input" type="text" placeholder="新增任務..." class="flex-1 px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-800 text-white placeholder-zinc-600 focus:outline-none focus:border-red-500/50 focus:ring-1 focus:ring-red-500 transition-all font-medium tracking-wide" required>
+              <button type="submit" class="bg-red-600 hover:bg-red-500 shadow-[0_0_15px_rgba(220,38,38,0.4)] text-white px-4 rounded-xl transition-all"><i data-lucide="plus" class="w-6 h-6"></i></button>
+            </form>
+            <div id="tasks-list" class="space-y-3"></div>
+          </div>
+        </div>
+
+        <!-- 2. 記帳 Tab -->
+        <div id="tab-expenses" class="tab-content hidden space-y-6">
+          <div class="bg-zinc-900 p-5 rounded-2xl border border-zinc-800 flex flex-col items-center relative overflow-hidden">
+            <i data-lucide="star" class="absolute top-2 right-2 w-16 h-16 text-purple-900/20 fill-current"></i>
+            <h3 class="text-xs font-black text-purple-500 w-full mb-4 flex items-center tracking-[0.2em]">
+              <i data-lucide="pie-chart" class="w-4 h-4 mr-2"></i> ANALYSIS
+            </h3>
+            <div id="pie-chart-container" class="w-full flex items-center gap-6">
+              <!-- Pie chart generated by JS -->
+            </div>
+          </div>
+
+          <form id="expense-form" onsubmit="addExpense(event)" class="bg-zinc-900 p-4 rounded-2xl border border-zinc-800 space-y-3">
+            <div class="flex justify-between items-center mb-1">
+              <span class="text-xs font-bold text-zinc-500 tracking-widest">NEW EXPENSE</span>
+              <span id="expense-limit-display" class="text-[10px] text-zinc-600 font-bold bg-zinc-950 px-2 py-1 rounded">
+                上限: 總額 30% ($1500)
+              </span>
+            </div>
+
+            <div id="expense-lock-warning" class="hidden bg-red-950/40 border border-red-900 rounded-xl p-3 flex items-start gap-2 mb-3 shadow-[0_0_15px_rgba(255,0,0,0.1)]">
+              <i data-lucide="alert-triangle" class="w-5 h-5 text-red-500 flex-shrink-0 animate-pulse"></i>
+              <div class="text-xs text-red-400 font-medium">
+                <strong class="text-red-500 text-sm tracking-wider"><span id="lock-warning-cat"></span> 已被強制鎖定！</strong><br />
+                花費已達總預算 30% 警戒線。<br/>
+                <span class="text-zinc-400 mt-1 inline-block">🔒 解鎖日期：<span id="lock-warning-date"></span></span>
+              </div>
+            </div>
+
+            <div class="flex gap-2">
+              <input id="exp-date" type="date" class="exp-input w-36 bg-black rounded-xl px-2 py-2 border border-zinc-800 text-sm text-zinc-300 focus:outline-none focus:border-purple-500 disabled:opacity-50" required>
+              <select id="exp-cat" onchange="checkCategoryLock()" class="exp-input flex-1 bg-black rounded-xl px-2 py-2 border border-zinc-800 text-sm text-zinc-300 font-bold tracking-wider focus:outline-none focus:border-purple-500">
+                <option value="飲食">飲食</option>
+                <option value="交通">交通</option>
+                <option value="娛樂" selected>娛樂</option>
+                <option value="學習">學習</option>
+                <option value="其他">其他</option>
+              </select>
+            </div>
+            <div class="flex gap-2">
+              <input id="exp-desc" type="text" placeholder="項目名稱" class="exp-input flex-1 bg-black rounded-xl px-3 py-2 border border-zinc-800 placeholder-zinc-700 text-white focus:outline-none focus:border-purple-500 disabled:opacity-50 font-bold" required>
+              <input id="exp-amount" type="number" placeholder="金額" class="exp-input w-24 bg-black rounded-xl px-3 py-2 border border-zinc-800 placeholder-zinc-700 text-white focus:outline-none focus:border-purple-500 disabled:opacity-50 font-bold" required>
+            </div>
+            <button id="exp-submit-btn" type="submit" class="w-full font-black py-3 rounded-xl transition-all tracking-[0.2em] text-sm bg-purple-600 hover:bg-purple-500 shadow-[0_0_15px_rgba(147,51,234,0.3)] text-white">
+              ADD RECORD
+            </button>
+          </form>
+
+          <div id="expenses-list" class="space-y-2"></div>
+        </div>
+
+        <!-- 3. 健身 Tab -->
+        <div id="tab-fitness" class="tab-content hidden space-y-6">
+          <div class="bg-zinc-900 p-5 rounded-2xl border border-zinc-800 flex flex-col items-center">
+            <h3 class="text-xs font-black text-rose-500 w-full mb-4 flex items-center tracking-[0.2em]">
+              <i data-lucide="activity" class="w-4 h-4 mr-2 drop-shadow-[0_0_5px_rgba(244,63,94,0.8)]"></i> BODY METRICS
+            </h3>
+            <div class="flex w-full gap-4 items-center">
+              <div class="flex-1 space-y-3">
+                <div class="flex items-center gap-2 bg-black p-2 rounded-xl border border-zinc-800">
+                  <span class="text-xs font-bold text-zinc-500 w-10 pl-2 tracking-widest">身高</span>
+                  <input id="bmi-h" oninput="updateBMI()" type="number" placeholder="cm" class="flex-1 bg-transparent focus:outline-none text-white text-sm font-bold">
+                </div>
+                <div class="flex items-center gap-2 bg-black p-2 rounded-xl border border-zinc-800">
+                  <span class="text-xs font-bold text-zinc-500 w-10 pl-2 tracking-widest">體重</span>
+                  <input id="bmi-w" oninput="updateBMI()" type="number" placeholder="kg" class="flex-1 bg-transparent focus:outline-none text-white text-sm font-bold">
+                </div>
+              </div>
+              <div class="w-24 h-24 rounded-full bg-black border-2 border-rose-900/50 flex flex-col items-center justify-center flex-shrink-0 shadow-[0_0_20px_rgba(244,63,94,0.15)] relative overflow-hidden">
+                <div class="absolute inset-0 bg-rose-500/5"></div>
+                <span class="text-[10px] text-rose-500/80 font-black mb-1 tracking-widest">BMI</span>
+                <span id="bmi-display" class="text-2xl font-black text-rose-500 drop-shadow-[0_0_8px_rgba(244,63,94,0.5)] z-10">--</span>
+              </div>
+            </div>
+          </div>
+          <div id="fitness-list" class="space-y-3"></div>
+        </div>
+
+        <!-- 4. 理財 Tab -->
+        <div id="tab-investment" class="tab-content hidden space-y-4">
+          <div class="bg-cyan-950/20 p-4 rounded-2xl border border-cyan-900/50 flex items-start relative overflow-hidden">
+            <i data-lucide="moon" class="absolute -bottom-2 -right-2 w-20 h-20 text-cyan-900/30 rotate-12"></i>
+            <i data-lucide="trending-up" class="w-6 h-6 text-cyan-400 drop-shadow-[0_0_5px_rgba(34,211,238,0.8)] mr-3 mt-1 flex-shrink-0 z-10"></i>
+            <div class="z-10">
+              <h3 class="font-black text-cyan-400 mb-1 tracking-widest text-sm">FINANCE NOTES</h3>
+              <p class="text-xs text-cyan-600/80 leading-relaxed font-medium tracking-wide">投資自己是最好的投資。在這裡記錄財商筆記，格子沒有上限。</p>
+            </div>
+          </div>
+
+          <form onsubmit="addNote(event)" class="bg-zinc-900 p-4 rounded-2xl border border-zinc-800 space-y-3">
+            <input id="note-date" type="date" class="w-full bg-black rounded-xl px-3 py-2 border border-zinc-800 text-sm text-white font-bold focus:outline-none focus:border-cyan-500/50" required>
+            <textarea id="note-text" placeholder="寫下今天的理財領悟..." rows="3" class="w-full bg-black rounded-xl px-3 py-3 border border-zinc-800 focus:outline-none focus:border-cyan-500/50 text-white placeholder-zinc-700 font-medium tracking-wide resize-none"></textarea>
+
+            <div id="note-img-preview-container" class="relative hidden">
+              <img id="note-img-preview" src="" alt="預覽" class="w-full h-32 object-cover rounded-xl border border-zinc-800 opacity-80 mix-blend-luminosity">
+              <button type="button" onclick="clearNoteImage()" class="absolute top-2 right-2 bg-black p-1.5 rounded-full text-zinc-400 hover:text-red-500 border border-zinc-800">
+                <i data-lucide="x" class="w-3 h-3"></i>
+              </button>
+            </div>
+
+            <div class="flex gap-2">
+              <label class="flex-1 bg-cyan-950/20 text-cyan-500 text-xs font-black tracking-widest py-3 rounded-xl flex items-center justify-center cursor-pointer hover:bg-cyan-900/40 transition-colors border border-cyan-900/50">
+                <i data-lucide="camera" class="w-4 h-4 mr-2"></i> PHOTO
+                <input id="note-file" type="file" accept="image/*" onchange="handleImageUpload(event)" class="hidden">
+              </label>
+              <button type="submit" class="flex-1 bg-cyan-600 hover:bg-cyan-500 text-xs shadow-[0_0_15px_rgba(8,145,178,0.3)] text-white font-black tracking-widest py-3 rounded-xl transition-all">
+                SAVE NOTE
+              </button>
+            </div>
+          </form>
+
+          <div id="notes-list" class="space-y-4 pt-2"></div>
+        </div>
+
+        <!-- 5. 課程 Tab -->
+        <div id="tab-courses" class="tab-content hidden h-full flex flex-col items-center justify-center text-center pt-20">
+          <div class="w-24 h-24 bg-fuchsia-950/20 border-2 border-fuchsia-900/50 text-fuchsia-500 rounded-full flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(217,70,239,0.15)] relative">
+            <i data-lucide="book-open" class="w-10 h-10 animate-pulse"></i>
+            <i data-lucide="crosshair" class="absolute -top-2 -right-2 w-6 h-6 text-fuchsia-400/50"></i>
+          </div>
+          <h2 class="text-xl font-black text-white mb-2 tracking-[0.2em]">未來大學課程</h2>
+          <p class="text-zinc-500 text-xs max-w-[250px] leading-relaxed font-bold tracking-wider mb-6">
+            準備好迎接下一個階段。這裡將會是你的課表與學分計算中樞。
+          </p>
+          <span class="inline-block bg-black border border-zinc-800 px-4 py-2 rounded-full text-[10px] text-zinc-400 font-black tracking-[0.3em]">COMING SOON</span>
+        </div>
+
+      </div>
+
+      <!-- 底部導覽列 -->
+      <div class="absolute bottom-0 left-0 right-0 bg-black/95 backdrop-blur-md border-t border-zinc-900 pb-safe z-20">
+        <div class="flex justify-around items-center pb-6 pt-4 px-2">
+          
+          <button onclick="switchTab('tasks')" data-tab="tasks" class="nav-btn flex flex-col items-center flex-1 focus:outline-none transition-all duration-300 text-red-500 drop-shadow-[0_0_10px_rgba(239,68,68,0.8)] scale-110">
+            <i data-lucide="crosshair" class="w-5 h-5 mb-1.5"></i>
+            <span class="text-[9px] font-black tracking-widest">TASKS</span>
+          </button>
+          
+          <button onclick="switchTab('expenses')" data-tab="expenses" class="nav-btn flex flex-col items-center flex-1 focus:outline-none transition-all duration-300 text-zinc-600 hover:text-zinc-400">
+            <i data-lucide="wallet" class="w-5 h-5 mb-1.5"></i>
+            <span class="text-[9px] font-black tracking-widest">MONEY</span>
+          </button>
+          
+          <button onclick="switchTab('fitness')" data-tab="fitness" class="nav-btn flex flex-col items-center flex-1 focus:outline-none transition-all duration-300 text-zinc-600 hover:text-zinc-400">
+            <i data-lucide="activity" class="w-5 h-5 mb-1.5"></i>
+            <span class="text-[9px] font-black tracking-widest">BODY</span>
+          </button>
+
+          <button onclick="switchTab('investment')" data-tab="investment" class="nav-btn flex flex-col items-center flex-1 focus:outline-none transition-all duration-300 text-zinc-600 hover:text-zinc-400">
+            <i data-lucide="trending-up" class="w-5 h-5 mb-1.5"></i>
+            <span class="text-[9px] font-black tracking-widest">NOTES</span>
+          </button>
+
+          <button onclick="switchTab('courses')" data-tab="courses" class="nav-btn flex flex-col items-center flex-1 focus:outline-none transition-all duration-300 text-zinc-600 hover:text-zinc-400">
+            <i data-lucide="moon" class="w-5 h-5 mb-1.5"></i>
+            <span class="text-[9px] font-black tracking-widest">FUTURE</span>
+          </button>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ================= 全域狀態管理 =================
+    const todayStr = new Date().toLocaleDateString('en-CA');
+    
+    let state = {
+      activeTab: 'tasks',
+      budget: 5000,
+      tasks: [
+        { id: 1, text: '背 20 個英文單字', completed: false },
+        { id: 2, text: '整理書桌', completed: true }
+      ],
+      countdowns: [
+        { id: 1, title: '期中考', targetDate: '2026-05-15' },
+        { id: 2, title: '演唱會', targetDate: '2026-08-10' }
+      ],
+      expenses: [
+        { id: 1, desc: '早餐', amount: 65, category: '飲食', date: todayStr },
+        { id: 2, desc: '買衣服', amount: 800, category: '娛樂', date: todayStr }
+      ],
+      lockedCategories: {},
+      weeklyFitness: ['星期一', '星期二', '星期三', '星期四', '星期五', '星期六', '星期日'].map((day, idx) => ({
+        id: idx, day: day, goal: '', date: todayStr, calories: '', completed: false
+      })),
+      learningNotes: [
+        { id: 1, date: todayStr, text: '學習資產配置，不把雞蛋放在同一個籃子裡。', image: null }
+      ],
+      currentUploadedImage: null
+    };
+
+    const categories = [
+      { name: '飲食', color: '#ff003c' },
+      { name: '交通', color: '#8a2be2' },
+      { name: '娛樂', color: '#00ffff' },
+      { name: '學習', color: '#39ff14' },
+      { name: '其他', color: '#ff00ff' }
+    ];
+
+    // 初始化設定
+    document.getElementById('new-cd-date').value = todayStr;
+    document.getElementById('exp-date').value = todayStr;
+    document.getElementById('note-date').value = todayStr;
+
+    // ================= 歡迎畫面與語音 =================
+    function startApp() {
+      const audio = new Audio('20260425_015434865.mp3');
+      audio.play().catch(err => {
+        console.warn("無法載入 mp3，自動退回使用系統合成語音:", err);
+        if ('speechSynthesis' in window) {
+          window.speechSynthesis.cancel();
+          const msg = new SpeechSynthesisUtterance("Welcome, sir.");
+          msg.lang = 'en-GB'; msg.pitch = 0.5; msg.rate = 0.9;
+          window.speechSynthesis.speak(msg);
+        }
+      });
+      document.getElementById('splash-screen').classList.add('hidden');
+      document.getElementById('main-app').classList.remove('hidden');
+      switchTab('tasks'); // 初始化渲染
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast-container');
+      document.getElementById('toast-message').textContent = msg;
+      toast.classList.remove('hidden');
+      setTimeout(() => toast.classList.add('hidden'), 5000);
+    }
+
+    // ================= 標籤切換邏輯 =================
+    const tabStyles = {
+      'tasks': 'text-red-500 drop-shadow-[0_0_10px_rgba(239,68,68,0.8)] scale-110',
+      'expenses': 'text-purple-500 drop-shadow-[0_0_10px_rgba(168,85,247,0.8)] scale-110',
+      'fitness': 'text-rose-500 drop-shadow-[0_0_10px_rgba(244,63,94,0.8)] scale-110',
+      'investment': 'text-cyan-400 drop-shadow-[0_0_10px_rgba(34,211,238,0.8)] scale-110',
+      'courses': 'text-fuchsia-500 drop-shadow-[0_0_10px_rgba(217,70,239,0.8)] scale-110'
+    };
+
+    function switchTab(tabId) {
+      state.activeTab = tabId;
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.topbar-content').forEach(el => el.classList.add('hidden'));
+      
+      document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+      document.getElementById(`topbar-${tabId}`).classList.remove('hidden');
+
+      document.querySelectorAll('.nav-btn').forEach(btn => {
+        if (btn.dataset.tab === tabId) {
+          btn.className = `nav-btn flex flex-col items-center flex-1 focus:outline-none transition-all duration-300 ${tabStyles[tabId]}`;
+        } else {
+          btn.className = `nav-btn flex flex-col items-center flex-1 focus:outline-none transition-all duration-300 text-zinc-600 hover:text-zinc-400`;
+        }
+      });
+
+      renderAll();
+    }
+
+    function renderAll() {
+      if (state.activeTab === 'tasks') { renderCountdowns(); renderTasks(); }
+      if (state.activeTab === 'expenses') renderExpenses();
+      if (state.activeTab === 'fitness') renderFitness();
+      if (state.activeTab === 'investment') renderNotes();
+      lucide.createIcons();
+    }
+
+    // ================= 任務與倒數 =================
+    function getDaysLeft(targetDate) {
+      const todayObj = new Date(todayStr);
+      const targetObj = new Date(targetDate);
+      return Math.ceil((targetObj - todayObj) / (1000 * 60 * 60 * 24));
+    }
+
+    function addCountdown(e) {
+      e.preventDefault();
+      const title = document.getElementById('new-cd-title').value;
+      const date = document.getElementById('new-cd-date').value;
+      if (!title.trim() || !date) return;
+      state.countdowns.push({ id: Date.now(), title, targetDate: date });
+      document.getElementById('new-cd-title').value = '';
+      renderCountdowns();
+    }
+
+    function deleteCountdown(id) {
+      state.countdowns = state.countdowns.filter(c => c.id !== id);
+      renderCountdowns();
+    }
+
+    function renderCountdowns() {
+      const list = document.getElementById('countdowns-list');
+      list.innerHTML = state.countdowns.map(c => {
+        const days = getDaysLeft(c.targetDate);
+        const isPast = days < 0;
+        return `
+          <div class="bg-zinc-900 border border-zinc-800 p-4 rounded-2xl relative overflow-hidden group hover:border-red-500/50 transition-colors">
+            <button onclick="deleteCountdown(${c.id})" class="absolute top-2 right-2 text-zinc-700 hover:text-red-500 z-10"><i data-lucide="x" class="w-4 h-4"></i></button>
+            <div class="text-xs font-bold text-zinc-500 tracking-widest mb-1 truncate pr-4">${c.title}</div>
+            <div class="flex items-end gap-1">
+              <span class="text-3xl font-black ${isPast ? 'text-zinc-600' : 'text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]'}">${Math.abs(days)}</span>
+              <span class="text-xs text-zinc-400 font-bold mb-1">${isPast ? '天前' : '天'}</span>
+            </div>
+            <div class="text-[10px] text-zinc-600 mt-1">${c.targetDate}</div>
+          </div>
+        `;
+      }).join('');
+      lucide.createIcons();
+    }
+
+    function addTask(e) {
+      e.preventDefault();
+      const input = document.getElementById('new-task-input');
+      if (!input.value.trim()) return;
+      state.tasks.push({ id: Date.now(), text: input.value, completed: false });
+      input.value = '';
+      renderTasks();
+    }
+
+    function toggleTask(id) {
+      const task = state.tasks.find(t => t.id === id);
+      if(task) task.completed = !task.completed;
+      renderTasks();
+    }
+
+    function deleteTask(id) {
+      state.tasks = state.tasks.filter(t => t.id !== id);
+      renderTasks();
+    }
+
+    function renderTasks() {
+      document.getElementById('pending-tasks-count').textContent = state.tasks.filter(t => !t.completed).length;
+      const list = document.getElementById('tasks-list');
+      list.innerHTML = state.tasks.map(task => `
+        <div class="flex items-center justify-between p-4 bg-zinc-900/80 rounded-xl border border-zinc-800/80 transition-all hover:border-zinc-700">
+          <button onclick="toggleTask(${task.id})" class="mr-3 focus:outline-none">
+            ${task.completed ? '<i data-lucide="check-circle" class="w-6 h-6 text-red-500 drop-shadow-[0_0_5px_rgba(239,68,68,0.8)]"></i>' : '<i data-lucide="circle" class="w-6 h-6 text-zinc-700"></i>'}
+          </button>
+          <span class="flex-1 ${task.completed ? 'line-through text-zinc-600' : 'text-zinc-200 font-bold tracking-wide'}">${task.text}</span>
+          <button onclick="deleteTask(${task.id})" class="text-zinc-600 hover:text-red-500 transition-colors focus:outline-none"><i data-lucide="trash-2" class="w-5 h-5"></i></button>
+        </div>
+      `).join('');
+      lucide.createIcons();
+    }
+
+    // ================= 記帳防爆卡邏輯 =================
+    function toggleBudgetEdit() {
+      document.getElementById('budget-input').value = state.budget;
+      document.getElementById('budget-edit-mode').classList.remove('hidden');
+      document.getElementById('budget-display-mode').classList.add('hidden');
+    }
+
+    function saveBudget() {
+      state.budget = Number(document.getElementById('budget-input').value);
+      document.getElementById('budget-display').innerHTML = `$${state.budget}`;
+      document.getElementById('expense-limit-display').innerText = `上限: 總額 30% ($${Math.round(state.budget * 0.3)})`;
+      document.getElementById('budget-edit-mode').classList.add('hidden');
+      document.getElementById('budget-display-mode').classList.remove('hidden');
+      renderExpenses();
+    }
+
+    function checkCategoryLock() {
+      const cat = document.getElementById('exp-cat').value;
+      const lockDateStr = state.lockedCategories[cat];
+      let isLocked = false;
+      if (lockDateStr && new Date(todayStr) < new Date(lockDateStr)) {
+        isLocked = true;
+      }
+
+      const btn = document.getElementById('exp-submit-btn');
+      const inputs = document.querySelectorAll('.exp-input');
+      const warning = document.getElementById('expense-lock-warning');
+
+      if (isLocked) {
+        btn.disabled = true;
+        btn.textContent = 'LOCKED';
+        btn.className = "w-full font-black py-3 rounded-xl transition-all tracking-[0.2em] text-sm bg-zinc-800 text-zinc-600 cursor-not-allowed";
+        inputs.forEach(i => i.disabled = true);
+        document.getElementById('exp-cat').disabled = false; // 讓下拉選單永遠可點，才能切換出來
+        
+        warning.classList.remove('hidden');
+        document.getElementById('lock-warning-cat').textContent = cat;
+        document.getElementById('lock-warning-date').textContent = lockDateStr;
+      } else {
+        btn.disabled = false;
+        btn.textContent = 'ADD RECORD';
+        btn.className = "w-full font-black py-3 rounded-xl transition-all tracking-[0.2em] text-sm bg-purple-600 hover:bg-purple-500 shadow-[0_0_15px_rgba(147,51,234,0.3)] text-white";
+        inputs.forEach(i => i.disabled = false);
+        warning.classList.add('hidden');
+      }
+      return isLocked;
+    }
+
+    function addExpense(e) {
+      e.preventDefault();
+      if (checkCategoryLock()) return;
+
+      const desc = document.getElementById('exp-desc').value;
+      const amount = Number(document.getElementById('exp-amount').value);
+      const cat = document.getElementById('exp-cat').value;
+      const date = document.getElementById('exp-date').value;
+
+      const catTotalBefore = state.expenses.filter(ex => ex.category === cat).reduce((s, ex) => s + ex.amount, 0);
+      const limitAmount = state.budget * 0.3;
+
+      state.expenses.push({ id: Date.now(), desc, amount, category: cat, date });
+
+      if ((catTotalBefore + amount) >= limitAmount && !state.lockedCategories[cat]) {
+        const unlockDate = new Date(todayStr);
+        unlockDate.setDate(unlockDate.getDate() + 7);
+        state.lockedCategories[cat] = unlockDate.toISOString().split('T')[0];
+        showToast(`⚠️ 警告：${cat} 花費超過總預算 30%！已強制鎖定一週。`);
+      }
+
+      document.getElementById('exp-desc').value = '';
+      document.getElementById('exp-amount').value = '';
+      renderExpenses();
+    }
+
+    function deleteExpense(id) {
+      state.expenses = state.expenses.filter(e => e.id !== id);
+      renderExpenses();
+    }
+
+    function renderExpenses() {
+      const totalExpense = state.expenses.reduce((s, i) => s + i.amount, 0);
+      const remaining = state.budget - totalExpense;
+      
+      const remainDisp = document.getElementById('remaining-display');
+      remainDisp.textContent = `$${remaining}`;
+      remainDisp.className = `text-4xl font-black tracking-tighter ${remaining < 0 ? 'text-red-500 drop-shadow-[0_0_10px_rgba(255,0,60,0.8)]' : 'text-purple-400 drop-shadow-[0_0_10px_rgba(138,43,226,0.6)]'}`;
+      document.getElementById('total-spent-display').textContent = `$${totalExpense}`;
+
+      checkCategoryLock();
+
+      // Chart
+      let cumulativePercent = 0;
+      const gradientStops = categories.map(cat => {
+        const amount = state.expenses.filter(e => e.category === cat.name).reduce((sum, e) => sum + e.amount, 0);
+        if (amount === 0) return null;
+        const percent = (amount / totalExpense) * 100;
+        const start = cumulativePercent;
+        cumulativePercent += percent;
+        return `${cat.color} ${start}% ${cumulativePercent}%`;
+      }).filter(Boolean).join(', ');
+
+      const chartContainer = document.getElementById('pie-chart-container');
+      if (totalExpense === 0) {
+        chartContainer.innerHTML = `<div class="mx-auto w-32 h-32 rounded-full bg-black border-2 border-zinc-800 flex items-center justify-center text-zinc-700 text-xs font-bold tracking-widest">NO DATA</div>`;
+      } else {
+        const legendHtml = categories.map(cat => {
+          const amount = state.expenses.filter(e => e.category === cat.name).reduce((sum, e) => sum + e.amount, 0);
+          if (amount === 0) return '';
+          return `
+            <div class="flex items-center justify-between text-xs">
+              <div class="flex items-center">
+                <span class="w-3 h-3 rounded-full mr-2 shadow-sm" style="background-color: ${cat.color}; box-shadow: 0 0 8px ${cat.color}"></span>
+                <span class="text-zinc-400 font-bold">${cat.name}</span>
+              </div>
+              <span class="font-black text-white">${Math.round((amount / totalExpense) * 100)}%</span>
+            </div>`;
+        }).join('');
+        
+        chartContainer.innerHTML = `
+          <div class="w-28 h-28 rounded-full flex-shrink-0 shadow-[0_0_20px_rgba(0,0,0,0.8)] border-4 border-black" style="background: conic-gradient(${gradientStops})"></div>
+          <div class="flex-1 space-y-2">${legendHtml}</div>
+        `;
+      }
+
+      // List
+      document.getElementById('expenses-list').innerHTML = state.expenses.map(exp => {
+        const catColor = categories.find(c => c.name === exp.category)?.color || '#ccc';
+        return `
+          <div class="flex items-center justify-between p-4 bg-zinc-900 rounded-xl border border-zinc-800 hover:border-zinc-700 transition-all">
+            <div class="flex items-center gap-3">
+              <span class="w-2 h-2 rounded-full" style="background-color: ${catColor}; box-shadow: 0 0 8px ${catColor}"></span>
+              <div>
+                <div class="text-zinc-200 font-bold tracking-wide">${exp.desc}</div>
+                <div class="text-[10px] text-zinc-500 mt-0.5 tracking-widest">${exp.date}</div>
+              </div>
+            </div>
+            <div class="flex items-center gap-4">
+              <span class="text-white font-black tracking-wider">$${exp.amount}</span>
+              <button onclick="deleteExpense(${exp.id})" class="text-zinc-600 hover:text-red-500 transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+            </div>
+          </div>
+        `;
+      }).join('');
+      lucide.createIcons();
+    }
+
+    // ================= 健身 BMI 與週目標 =================
+    function updateBMI() {
+      const h = document.getElementById('bmi-h').value;
+      const w = document.getElementById('bmi-w').value;
+      const display = document.getElementById('bmi-display');
+      if (h && w && h > 0) {
+        display.textContent = (w / Math.pow(h / 100, 2)).toFixed(1);
+      } else {
+        display.textContent = '--';
+      }
+    }
+
+    function updateFitnessInput(id, field, value) {
+      const day = state.weeklyFitness.find(d => d.id === id);
+      if(day) day[field] = value;
+      if(field === 'goal' || field === 'completed') renderFitness(); // 只在目標改變或完成時重新渲染，避免打字失去焦點
+    }
+
+    function clearFitnessDay(id) {
+      const day = state.weeklyFitness.find(d => d.id === id);
+      if(day) {
+        day.goal = ''; day.calories = ''; day.completed = false;
+      }
+      renderFitness();
+    }
+
+    function renderFitness() {
+      document.getElementById('fitness-list').innerHTML = state.weeklyFitness.map(day => {
+        if (!day.goal) {
+          return `
+            <div class="p-4 rounded-2xl border transition-all bg-zinc-900 border-zinc-800 hover:border-zinc-700">
+              <div class="flex justify-between items-center mb-2">
+                <span class="font-black text-white flex items-center tracking-widest text-sm">
+                  <i data-lucide="flame" class="w-4 h-4 mr-2 text-rose-500 drop-shadow-[0_0_5px_rgba(244,63,94,0.8)]"></i> ${day.day}
+                </span>
+              </div>
+              <div class="flex gap-2 mt-3">
+                <input type="text" placeholder="設定今日運動目標..." 
+                  class="flex-1 bg-black rounded-xl px-3 py-2 text-sm border border-zinc-800 focus:border-rose-500/50 focus:outline-none text-white placeholder-zinc-700 font-bold"
+                  onblur="updateFitnessInput(${day.id}, 'goal', this.value)"
+                  onkeydown="if(event.key === 'Enter'){ event.preventDefault(); updateFitnessInput(${day.id}, 'goal', this.value); }"
+                >
+              </div>
+            </div>`;
+        }
+
+        return `
+          <div class="p-4 rounded-2xl border transition-all ${day.completed ? 'bg-black border-zinc-900 opacity-50' : 'bg-zinc-900 border-zinc-800 hover:border-zinc-700'}">
+            <div class="flex justify-between items-center mb-2">
+              <span class="font-black text-white flex items-center tracking-widest text-sm">
+                <i data-lucide="flame" class="w-4 h-4 mr-2 ${day.completed ? 'text-zinc-700' : 'text-rose-500 drop-shadow-[0_0_5px_rgba(244,63,94,0.8)]'}"></i> ${day.day}
+              </span>
+              ${day.completed ? '<span class="text-[10px] text-rose-500 font-black tracking-widest border border-rose-900/50 px-2 py-1 rounded bg-rose-950/30">DONE</span>' : ''}
+            </div>
+            <div class="space-y-3 mt-4">
+              <div class="text-zinc-300 font-bold tracking-wide text-sm ${day.completed ? 'line-through text-zinc-600' : ''}">
+                <span class="text-rose-500 mr-2">✦</span>${day.goal}
+              </div>
+              <div class="flex items-center gap-2">
+                <input type="date" value="${day.date}" onchange="updateFitnessInput(${day.id}, 'date', this.value)" ${day.completed ? 'disabled' : ''} style="color-scheme: dark;"
+                  class="w-32 bg-black rounded-xl border border-zinc-800 px-2 py-2 text-xs focus:border-rose-500/50 focus:outline-none disabled:opacity-50 text-white font-bold"
+                >
+                <div class="flex-1 flex items-center bg-black rounded-xl border border-zinc-800 px-2 py-2 text-sm focus-within:border-rose-500/50">
+                  <input type="number" value="${day.calories}" onchange="updateFitnessInput(${day.id}, 'calories', this.value)" placeholder="消耗熱量" ${day.completed ? 'disabled' : ''}
+                    class="w-full bg-transparent focus:outline-none disabled:opacity-50 text-right pr-2 text-white font-bold"
+                  >
+                  <span class="text-zinc-600 text-[10px] font-black tracking-widest">KCAL</span>
+                </div>
+              </div>
+              <div class="flex items-center justify-between pt-3 border-t border-zinc-800/50 mt-3">
+                <button onclick="updateFitnessInput(${day.id}, 'completed', ${!day.completed})" class="flex items-center px-4 py-2 rounded-xl text-xs font-black tracking-widest transition-colors ${day.completed ? 'bg-zinc-800 text-zinc-500' : 'bg-rose-600 text-white shadow-[0_0_15px_rgba(243,63,94,0.3)] hover:bg-rose-500'}">
+                  ${day.completed ? 'UNDO' : 'MARK COMPLETE'}
+                </button>
+                ${day.completed ? `<button onclick="clearFitnessDay(${day.id})" class="text-zinc-600 hover:text-red-500 transition-colors flex items-center text-[10px] font-black tracking-widest bg-black px-3 py-2 rounded-xl border border-zinc-800"><i data-lucide="trash-2" class="w-3 h-3 mr-1"></i> DELETE</button>` : ''}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+      lucide.createIcons();
+    }
+
+    // ================= 投資理財筆記 =================
+    function handleImageUpload(e) {
+      const file = e.target.files[0];
+      if (file) {
+        state.currentUploadedImage = URL.createObjectURL(file);
+        document.getElementById('note-img-preview').src = state.currentUploadedImage;
+        document.getElementById('note-img-preview-container').classList.remove('hidden');
+      }
+    }
+
+    function clearNoteImage() {
+      state.currentUploadedImage = null;
+      document.getElementById('note-file').value = '';
+      document.getElementById('note-img-preview-container').classList.add('hidden');
+    }
+
+    function addNote(e) {
+      e.preventDefault();
+      const text = document.getElementById('note-text').value;
+      const date = document.getElementById('note-date').value;
+      if (!text.trim() && !state.currentUploadedImage) return;
+
+      state.learningNotes.unshift({ id: Date.now(), date, text, image: state.currentUploadedImage });
+      document.getElementById('note-text').value = '';
+      clearNoteImage();
+      renderNotes();
+    }
+
+    function deleteLearningNote(id) {
+      state.learningNotes = state.learningNotes.filter(n => n.id !== id);
+      renderNotes();
+    }
+
+    function renderNotes() {
+      const list = document.getElementById('notes-list');
+      if (state.learningNotes.length === 0) {
+        list.innerHTML = `<p class="text-center text-zinc-700 text-xs font-black tracking-widest py-8">NO NOTES YET</p>`;
+        return;
+      }
+      
+      list.innerHTML = state.learningNotes.map(note => `
+        <div class="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden hover:border-zinc-700 transition-colors relative group">
+          <i data-lucide="star" class="absolute top-4 right-4 w-12 h-12 text-zinc-800/50 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+          ${note.image ? `<img src="${note.image}" alt="筆記圖片" class="w-full h-40 object-cover opacity-80 mix-blend-luminosity hover:mix-blend-normal transition-all">` : ''}
+          <div class="p-4 relative z-10">
+            <div class="flex justify-between items-center mb-3">
+              <span class="text-[10px] text-cyan-400 font-black bg-cyan-950/50 border border-cyan-900/50 px-2 py-1 rounded tracking-widest">${note.date}</span>
+              <button onclick="deleteLearningNote(${note.id})" class="text-zinc-600 hover:text-red-500 focus:outline-none transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+            </div>
+            <p class="text-zinc-300 text-sm whitespace-pre-wrap leading-relaxed font-medium tracking-wide">${note.text}</p>
+          </div>
+        </div>
+      `).join('');
+      lucide.createIcons();
+    }
+
+  </script>
+</body>
+</html>
